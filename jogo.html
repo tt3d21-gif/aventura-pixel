@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Aventura Pixel</title>
+
+<style>
+body {
+    margin: 0;
+    background: #111;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+canvas {
+    border: 4px solid white;
+    width: 800px;
+    height: 450px;
+    image-rendering: pixelated;
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="game" width="400" height="225"></canvas>
+
+<script>
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+let fase = 1;
+let temChave = false;
+let teclas = {};
+
+const jogador = {
+    x: 30,
+    y: 170,
+    largura: 14,
+    altura: 20,
+    velocidade: 2.5,
+    velocidadeY: 0,
+    pulando: false
+};
+
+const gravidade = 0.5;
+
+let plataformas = [];
+let chave = {};
+let porta = {};
+
+
+// =========================
+// CONTROLES
+// =========================
+
+document.addEventListener("keydown", function(e) {
+
+    // Impede a página de rolar
+    if (
+        e.key === "ArrowLeft" ||
+        e.key === "ArrowRight" ||
+        e.key === "ArrowUp" ||
+        e.key === " "
+    ) {
+        e.preventDefault();
+    }
+
+    teclas[e.key] = true;
+
+    if (
+        (e.key === "ArrowUp" || e.key === " ") &&
+        !jogador.pulando
+    ) {
+        jogador.velocidadeY = -8;
+        jogador.pulando = true;
+    }
+});
+
+document.addEventListener("keyup", function(e) {
+    teclas[e.key] = false;
+});
+
+
+// =========================
+// MAPAS DAS FASES
+// =========================
+
+const mapas = [
+
+    // FASE 1
+    {
+        plataformas: [
+            {x:0, y:200, largura:400, altura:25},
+            {x:90, y:165, largura:70, altura:10},
+            {x:200, y:135, largura:70, altura:10},
+            {x:310, y:170, largura:60, altura:10}
+        ],
+        chave: {x:220, y:115},
+        porta: {x:355, y:145}
+    },
+
+    // FASE 2
+    {
+        plataformas: [
+            {x:0, y:200, largura:70, altura:25},
+            {x:90, y:175, largura:50, altura:10},
+            {x:160, y:145, largura:50, altura:10},
+            {x:230, y:115, largura:60, altura:10},
+            {x:320, y:155, largura:80, altura:10}
+        ],
+        chave: {x:245, y:95},
+        porta: {x:365, y:125}
+    },
+
+    // FASE 3
+    {
+        plataformas: [
+            {x:0, y:200, largura:100, altura:25},
+            {x:120, y:160, largura:45, altura:10},
+            {x:190, y:125, largura:45, altura:10},
+            {x:260, y:160, largura:45, altura:10},
+            {x:330, y:120, largura:70, altura:10}
+        ],
+        chave: {x:200, y:105},
+        porta: {x:365, y:90}
+    },
+
+    // FASE 4
+    {
+        plataformas: [
+            {x:0, y:200, largura:60, altura:25},
+            {x:80, y:150, largura:45, altura:10},
+            {x:145, y:185, largura:45, altura:10},
+            {x:210, y:130, largura:50, altura:10},
+            {x:280, y:170, largura:40, altura:10},
+            {x:340, y:110, largura:60, altura:10}
+        ],
+        chave: {x:220, y:110},
+        porta: {x:365, y:80}
+    }
+
+];
+
+
+// =========================
+// CARREGAR FASE
+// =========================
+
+function carregarFase() {
+
+    // Evita tecla presa
+    teclas = {};
+
+    temChave = false;
+
+    const mapa = mapas[(fase - 1) % mapas.length];
+
+    plataformas = mapa.plataformas.map(p => ({...p}));
+
+    chave = {
+        x: mapa.chave.x,
+        y: mapa.chave.y,
+        largura: 10,
+        altura: 10,
+        coletada: false
+    };
+
+    porta = {
+        x: mapa.porta.x,
+        y: mapa.porta.y,
+        largura: 18,
+        altura: 30
+    };
+
+    jogador.x = 30;
+    jogador.y = 170;
+    jogador.velocidadeY = 0;
+    jogador.pulando = false;
+}
+
+
+// =========================
+// DESENHAR FUNDO
+// =========================
+
+function desenharFundo() {
+
+    ctx.fillStyle = "#182848";
+    ctx.fillRect(0, 0, 400, 225);
+
+    ctx.fillStyle = "#ffffff";
+
+    for (let i = 0; i < 35; i++) {
+
+        let x = (i * 73) % 400;
+        let y = (i * 37) % 150;
+
+        ctx.fillRect(x, y, 1, 1);
+    }
+}
+
+
+// =========================
+// PLATAFORMAS
+// =========================
+
+function desenharPlataformas() {
+
+    for (let p of plataformas) {
+
+        ctx.fillStyle = "#56391c";
+        ctx.fillRect(
+            p.x,
+            p.y,
+            p.largura,
+            p.altura
+        );
+
+        ctx.fillStyle = "#36a852";
+        ctx.fillRect(
+            p.x,
+            p.y,
+            p.largura,
+            4
+        );
+    }
+}
+
+
+// =========================
+// PERSONAGEM
+// =========================
+
+function desenharJogador() {
+
+    // cabeça
+    ctx.fillStyle = "#ffd2a6";
+    ctx.fillRect(
+        jogador.x + 3,
+        jogador.y,
+        9,
+        8
+    );
+
+    // cabelo
+    ctx.fillStyle = "#542b12";
+    ctx.fillRect(
+        jogador.x + 3,
+        jogador.y,
+        9,
+        3
+    );
+
+    // corpo
+    ctx.fillStyle = "#2878d0";
+    ctx.fillRect(
+        jogador.x + 2,
+        jogador.y + 8,
+        10,
+        8
+    );
+
+    // pernas
+    ctx.fillStyle = "#222";
+
+    ctx.fillRect(
+        jogador.x + 2,
+        jogador.y + 16,
+        4,
+        4
+    );
+
+    ctx.fillRect(
+        jogador.x + 8,
+        jogador.y + 16,
+        4,
+        4
+    );
+}
+
+
+// =========================
+// CHAVE
+// =========================
+
+function desenharChave() {
+
+    if (!chave.coletada) {
+
+        ctx.fillStyle = "#ffd700";
+
+        ctx.fillRect(
+            chave.x,
+            chave.y,
+            7,
+            7
+        );
+
+        ctx.fillRect(
+            chave.x + 6,
+            chave.y + 3,
+            5,
+            3
+        );
+
+        ctx.fillRect(
+            chave.x + 9,
+            chave.y + 1,
+            3,
+            3
+        );
+    }
+}
+
+
+// =========================
+// PORTA
+// =========================
+
+function desenharPorta() {
+
+    ctx.fillStyle = temChave
+        ? "#27d34d"
+        : "#a83232";
+
+    ctx.fillRect(
+        porta.x,
+        porta.y,
+        porta.largura,
+        porta.altura
+    );
+
+    ctx.fillStyle = "#ffd700";
+
+    ctx.fillRect(
+        porta.x + 12,
+        porta.y + 15,
+        3,
+        3
+    );
+}
+
+
+// =========================
+// COLISÃO
+// =========================
+
+function colisao(a, b) {
+
+    return (
+        a.x < b.x + b.largura &&
+        a.x + a.largura > b.x &&
+        a.y < b.y + b.altura &&
+        a.y + a.altura > b.y
+    );
+}
+
+
+// =========================
+// ATUALIZAR JOGO
+// =========================
+
+function atualizar() {
+
+    // andar
+    if (teclas["ArrowRight"]) {
+        jogador.x += jogador.velocidade;
+    }
+
+    if (teclas["ArrowLeft"]) {
+        jogador.x -= jogador.velocidade;
+    }
+
+    // gravidade
+    jogador.velocidadeY += gravidade;
+    jogador.y += jogador.velocidadeY;
+
+    jogador.pulando = true;
+
+    // plataformas
+    for (let p of plataformas) {
+
+        if (
+            jogador.x + jogador.largura > p.x &&
+            jogador.x < p.x + p.largura &&
+            jogador.y + jogador.altura >= p.y &&
+            jogador.y + jogador.altura <= p.y + 10 &&
+            jogador.velocidadeY >= 0
+        ) {
+
+            jogador.y = p.y - jogador.altura;
+
+            jogador.velocidadeY = 0;
+
+            jogador.pulando = false;
+        }
+    }
+
+    // pegar chave
+    if (
+        !chave.coletada &&
+        colisao(jogador, chave)
+    ) {
+
+        chave.coletada = true;
+        temChave = true;
+    }
+
+    // entrar na porta
+    if (
+        temChave &&
+        colisao(jogador, porta)
+    ) {
+
+        proximaFase();
+    }
+
+    // limites
+    if (jogador.x < 0) {
+        jogador.x = 0;
+    }
+
+    if (jogador.x > 386) {
+        jogador.x = 386;
+    }
+
+    // caiu
+    if (jogador.y > 225) {
+
+        jogador.x = 30;
+        jogador.y = 170;
+        jogador.velocidadeY = 0;
+    }
+}
+
+
+// =========================
+// PRÓXIMA FASE
+// =========================
+
+function proximaFase() {
+
+    fase++;
+
+    if (fase > 4) {
+
+        alert("🏆 PARABÉNS! VOCÊ TERMINOU O JOGO!");
+
+        fase = 1;
+    }
+
+    carregarFase();
+}
+
+
+// =========================
+// DESENHAR
+// =========================
+
+function desenhar() {
+
+    desenharFundo();
+
+    desenharPlataformas();
+
+    desenharChave();
+
+    desenharPorta();
+
+    desenharJogador();
+
+    // HUD
+    ctx.fillStyle = "white";
+
+    ctx.font = "10px monospace";
+
+    ctx.fillText(
+        "FASE: " + fase,
+        10,
+        15
+    );
+
+    if (temChave) {
+
+        ctx.fillText(
+            "🔑 CHAVE!",
+            70,
+            15
+        );
+
+    } else {
+
+        ctx.fillText(
+            "PEGUE A CHAVE!",
+            70,
+            15
+        );
+    }
+}
+
+
+// =========================
+// INICIAR
+// =========================
+
+carregarFase();
+
+function jogo() {
+
+    atualizar();
+
+    desenhar();
+
+    requestAnimationFrame(jogo);
+}
+
+jogo();
+
+</script>
+
+</body>
+</html>
+
+Agora salva com "Ctrl + S" e volta para o Chrome. Aperta Ctrl + R para atualizar.
+
+Agora são 4 fases diferentes e, quando a fase muda, as teclas são zeradas para o personagem não sair andando sozinho. 🎮🔥
